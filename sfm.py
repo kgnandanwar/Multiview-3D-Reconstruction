@@ -9,17 +9,17 @@ import matplotlib.pyplot as plt
 class Image_loader():
     def __init__(self, img_dir:str, downscale_factor:float):
         # loading the Camera intrinsic parameters K
-        with open(img_dir + '\\K.txt') as f:
+        with open(img_dir + '/K.txt') as f:
             self.K = np.array(list((map(lambda x:list(map(lambda x:float(x), x.strip().split(' '))),f.read().split('\n')))))
             self.image_list = []
         # Loading the set of images
         for image in sorted(os.listdir(img_dir)):
-            if image[-4:].lower() == '.jpg' or image[-5:].lower() == '.png':
-                self.image_list.append(img_dir + '\\' + image)
-        
+            if image[-4:].lower() == '.jpg' or image[-5:].lower() == '.png' or '.ppm':
+                self.image_list.append(img_dir + '/' + image)
+        print(self.image_list)
         self.path = os.getcwd()
         self.factor = downscale_factor
-        self.downscale()
+        # self.downscale()
 
     
     def downscale(self) -> None:
@@ -143,7 +143,7 @@ class Sfm():
             property uchar red
             end_header
             '''
-        with open(path + '\\res\\' + self.img_obj.image_list[0].split('\\')[-2] + '.ply', 'w') as f:
+        with open(path + '/res/' + self.img_obj.image_list[0].split('/')[-2] + '.ply', 'w') as f:
             f.write(ply_header % dict(vert_num=len(verts)))
             np.savetxt(f, verts, '%f %f %f %d %d %d')
 
@@ -180,7 +180,8 @@ class Sfm():
         return keypoints(features) of image1 and image2
         '''
 
-        sift = cv2.xfeatures2d.SIFT_create()
+        # sift = cv2.xfeatures2d.SIFT_create()
+        sift = cv2.SIFT_create()
         key_points_0, desc_0 = sift.detectAndCompute(cv2.cvtColor(image_0, cv2.COLOR_BGR2GRAY), None)
         key_points_1, desc_1 = sift.detectAndCompute(cv2.cvtColor(image_1, cv2.COLOR_BGR2GRAY), None)
 
@@ -233,7 +234,7 @@ class Sfm():
         pose_array = np.hstack((np.hstack((pose_array, pose_0.ravel())), pose_1.ravel()))
 
         threshold = 0.5
-        for i in tqdm(range(total_images)):
+        for i in tqdm(range(total_images-1)):
             image_2 = self.img_obj.downscale_image(cv2.imread(self.img_obj.image_list[i + 2]))
             features_cur, features_2 = self.find_features(image_1, image_2)
 
@@ -274,8 +275,6 @@ class Sfm():
                 points_left = np.array(cm_mask_1, dtype=np.int32)
                 color_vector = np.array([image_2[l[1], l[0]] for l in points_left.T])
                 total_colors = np.vstack((total_colors, color_vector)) 
-   
-
 
             transform_matrix_0 = np.copy(transform_matrix_1)
             pose_0 = np.copy(pose_1)
@@ -287,18 +286,31 @@ class Sfm():
             feature_0 = np.copy(features_cur)
             feature_1 = np.copy(features_2)
             pose_1 = np.copy(pose_2)
-            cv2.imshow(self.img_obj.image_list[0].split('\\')[-2], image_2)
+            cv2.imshow(self.img_obj.image_list[0].split('/')[-2], image_2)
             if cv2.waitKey(1) & 0xff == ord('q'):
                 break
-        cv2.destroyAllWindows()
+        # cv2.destroyAllWindows()
 
         print("Printing to .ply file")
         print(total_points.shape, total_colors.shape)
         self.to_ply(self.img_obj.path, total_points, total_colors)
+
         print("Completed Exiting ...")
-        np.savetxt(self.img_obj.path + '\\res\\' + self.img_obj.image_list[0].split('\\')[-2]+'_pose_array.csv', pose_array, delimiter = '\n')
+        np.savetxt(self.img_obj.path + '/res/' + self.img_obj.image_list[0].split('/')[-2]+'_pose_array.csv', pose_array, delimiter = '\n')
+        out_points = (total_points.reshape(-1, 3) * 200).T
+        
+        fig = plt.figure()
+        fig.suptitle('3D reconstructed', fontsize=16)
+        ax = fig.gca(projection='3d')
+        ax.plot(out_points[0], out_points[1], out_points[2], 'b.')
+        ax.set_xlabel('x axis')
+        ax.set_ylabel('y axis')
+        ax.set_zlabel('z axis')
+        ax.view_init(elev=135, azim=90)
+        plt.show()
 
 if __name__ == '__main__':
-    sfm = Sfm("Datasets\\Herz-Jesus-P8")
+    # sfm = Sfm("Datasets/Herz-Jesus-P8")
+    sfm = Sfm("Datasets/dinos")
     sfm()
 
